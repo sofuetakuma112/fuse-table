@@ -1,22 +1,34 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import "./App.css";
-import { Button, TextField } from "@mui/material";
+import { Button, TextField, InputLabel, FormControl, Box } from "@mui/material";
 import Papa from "papaparse";
 import { Table } from "./components/Table";
 import { AddColumnModal } from "./components/Modal";
+import { AddRow } from "./components/AddRow";
 
 import Fuse from "./fuse/entry";
 import produce from "immer";
 
+import ExcelJS from "exceljs";
+
+import MenuItem from "@mui/material/MenuItem";
+import Select, { SelectChangeEvent } from "@mui/material/Select";
+
+const sortByIndex = (array: any) =>
+  array.sort((a: any, b: any) => {
+    return a.i > b.i ? 1 : -1;
+  });
+
 function App() {
-  const [rows, setRows] = useState([]);
   const [headerNames, setHeaderNames] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (!rows) return;
-    if (rows.length === 0) return;
-    setHeaderNames(Object.keys(rows[0]));
-  }, [rows]);
+  const [isAddColumnOpen, setIsAddColumnOpen] = useState<boolean>(false);
+
+  const [rowsForEdit, setRowsForEdit] = useState<any>([]);
+
+  const [searchWord, setSearchWord] = useState("");
+
+  const [searchTarget, setSearchTarget] = useState<string>("");
 
   const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -30,24 +42,45 @@ function App() {
             i,
           };
         });
-        setRows(rowsWithIndex);
+        setRowsForEdit(rowsWithIndex);
+        setHeaderNames(Object.keys(rowsWithIndex[0]));
       },
     });
   };
 
-  const [isAddColumnOpen, setIsAddColumnOpen] = useState<boolean>(false);
-
-  const handleAddRow = () => {
-    setRowsForEdit((oldRows: any) => [
-      {
-        ...headerNames.reduce((obj: any, headerName) => {
-          obj[headerName] = "";
-          return obj;
-        }, {}),
-        i: oldRows.length + 1,
-      },
-      ...oldRows,
-    ]);
+  const handleAddRow = (shouldInsertTop: boolean) => {
+    setRowsForEdit((oldRows: any) => {
+      let newRows: any[] = [];
+      if (shouldInsertTop) {
+        const incrementedIndexRows = oldRows.map((row: any) =>
+          produce(row, (draft: any) => {
+            draft.i += 1;
+          })
+        );
+        newRows = [
+          {
+            ...headerNames.reduce((obj: any, headerName) => {
+              obj[headerName] = "";
+              return obj;
+            }, {}),
+            i: 0,
+          },
+          ...incrementedIndexRows,
+        ];
+      } else {
+        newRows = [
+          ...oldRows,
+          {
+            ...headerNames.reduce((obj: any, headerName) => {
+              obj[headerName] = "";
+              return obj;
+            }, {}),
+            i: oldRows.length,
+          },
+        ];
+      }
+      return sortByIndex(newRows);
+    });
   };
 
   const handleAddColumn = () => {
@@ -57,42 +90,41 @@ function App() {
   const handleAddColumnClose = (columnName?: string) => {
     if (columnName && !headerNames.includes(columnName)) {
       setHeaderNames((oldHeaderNames) => [...oldHeaderNames, columnName]);
+      setRowsForEdit((oldRows: any[]) => {
+        const objWithNewKey: any = {};
+        objWithNewKey[columnName] = "";
+        const newRowsForEdit = oldRows.map((oldRow: any) => {
+          return {
+            ...oldRow,
+            ...objWithNewKey,
+          };
+        });
+        return newRowsForEdit;
+      });
     }
     setIsAddColumnOpen(false);
   };
 
-  //
-  //
-  //
+  const handlerClickDownloadButton = async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet("sheet1");
+    const worksheet = workbook.getWorksheet("sheet1");
 
-  const [rowsForEdit, setRowsForEdit] = useState<any>([]);
+    worksheet.columns = headerNames.map((headerName) => ({
+      header: headerName,
+      key: headerName,
+    }));
+    worksheet.addRows(rowsForEdit);
 
-  useEffect(() => {
-    if (!rowsForEdit || !rowsForEdit.length) return;
-    const noExistKeys = headerNames.filter(
-      (headerName) => !Object.keys(rowsForEdit[0]).includes(headerName)
-    );
-    if (!noExistKeys.length) return;
-    setRowsForEdit((oldRows: any[]) => {
-      const newRowsForEdit = oldRows.map((oldRow: any) => {
-        // const noExistKeys = headerNames.filter(
-        //   (headerName) => !Object.keys(oldRow).includes(headerName)
-        // );
-        return {
-          ...oldRow,
-          ...noExistKeys.reduce((obj: any, noExistKey) => {
-            obj[noExistKey] = "";
-            return obj;
-          }, {}),
-        };
-      });
-      return newRowsForEdit;
-    });
-  }, [headerNames, rowsForEdit]);
-
-  useEffect(() => {
-    setRowsForEdit(rows.slice());
-  }, [rows]);
+    const uint8Array = await workbook.csv.writeBuffer();
+    const blob = new Blob([uint8Array], { type: "application/octet-binary" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "output.csv";
+    a.click();
+    a.remove();
+  };
 
   const handleCellInput = (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -107,70 +139,85 @@ function App() {
       const newRowsForEdit = produce(oldRows, (draft: any) => {
         draft[i][columns[j].text] = e.target.value;
       });
-      setRowsForSearch(newRowsForEdit);
-      // console.log(newRowsForEdit);
       return newRowsForEdit;
     });
   };
 
-  const [searchWord, setSearchWord] = useState("");
-  const [rowsForSearch, setRowsForSearch] = useState<any>([]);
   const handleSearchWordInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchWord(e.target.value);
     if (!e.target.value) {
-      // rowsForSearchは常に最新の入力状態のセルデータを持つ
-      setRowsForEdit(rowsForSearch);
+      setRowsForEdit(sortByIndex(rowsForEdit));
       return;
     }
     const options = {
       includeScore: true,
-      keys: ["content"],
+      keys: [searchTarget],
     };
-    const fuse = new Fuse(rowsForSearch, options);
-    const result = fuse.search(e.target.value).sort((a: any, b: any) => {
-      if (!a?.score && !b?.score) return 0;
-      if (!a?.score) return 1;
-      if (!b?.score) return -1;
-      return a.score > b.score ? -1 : 1;
-    });
+    const fuse = new Fuse(rowsForEdit, options);
+    const result = fuse.search(e.target.value);
     setRowsForEdit(result.map(({ item }: any) => item));
+  };
+
+  const handleChangeSearchTarget = (e: SelectChangeEvent) => {
+    setSearchTarget(e.target.value);
   };
 
   return (
     <div className="App">
-      <div>
+      <div className="flex mb-3 mt-3">
         <Button variant="contained" component="label">
-          Upload File
+          アップロード
           <input type="file" onChange={onFileInputChange} hidden />
         </Button>
         {headerNames.length > 0 && (
           <>
             <Button
-              onClick={handleAddRow}
+              onClick={handlerClickDownloadButton}
               variant="contained"
               component="label"
             >
-              Add Row
+              ダウンロード
             </Button>
+            <AddRow onClose={handleAddRow} />
             <Button
               onClick={handleAddColumn}
               variant="contained"
               component="label"
             >
-              Add Column
+              列を追加
             </Button>
           </>
         )}
       </div>
       {headerNames.length > 0 && (
         <>
-          <TextField
-            id="outlined-basic"
-            label="Outlined"
-            variant="outlined"
-            onChange={handleSearchWordInput}
-            value={searchWord}
-          />
+          <div className="flex">
+            <TextField
+              id="outlined-basic"
+              label="検索ワード"
+              variant="outlined"
+              onChange={handleSearchWordInput}
+              value={searchWord}
+            />
+            <Box sx={{ minWidth: 120 }}>
+              <FormControl fullWidth>
+                <InputLabel id="demo-simple-select-label">検索対象</InputLabel>
+                <Select
+                  labelId="demo-simple-select-label"
+                  id="demo-simple-select"
+                  value={searchTarget}
+                  label="検索対象"
+                  onChange={handleChangeSearchTarget}
+                >
+                  {headerNames.map((headerName) => (
+                    <MenuItem key={headerName} value={headerName}>
+                      {headerName}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </div>
           <Table
             headerNames={headerNames}
             minCellWidth={120}

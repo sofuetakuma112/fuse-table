@@ -51,7 +51,8 @@ const Table: React.FC<Props> = ({
 
   const refs = createRefs(10);
   const columns = createHeaders(
-    headerNames.filter((headerName) => headerName !== "i"),
+    headerNames,
+    // headerNames.filter((headerName) => headerName !== "i"),
     refs
   );
 
