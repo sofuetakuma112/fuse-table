@@ -1,43 +1,66 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { TextField } from "@mui/material";
 import "./styles.css";
-import Fuse from "../../fuse/entry";
-import produce from "immer";
 
-const createHeaders = (headers: string[]) => {
-  return headers.map((item: string) => ({
+const createHeaders = (
+  headers: string[],
+  refs: React.RefObject<HTMLTableHeaderCellElement>[]
+) => {
+  return headers.map((item: string, i: number) => ({
     text: item,
-    ref: useRef<HTMLTableHeaderCellElement>(null),
+    ref: refs[i], // tableHeightの取得と、後でテーブルのヘッダーセルに正しい幅を適用するのに使用する
   }));
 };
+
+const createRefs = (size: number) =>
+  range(size).map(() => useRef<HTMLTableHeaderCellElement>(null));
 
 const range = (length: number) => Array.from({ length }, (v, k) => k);
 
 type Props = {
-  headers: string[];
+  headerNames: string[];
   minCellWidth: number;
   rows: any;
+  onCellInput(
+    e: React.ChangeEvent<HTMLInputElement>,
+    i: number,
+    j: number,
+    columns: {
+      text: string;
+      ref: React.RefObject<HTMLTableHeaderCellElement>;
+    }[]
+  ): void;
 };
 
 /*
  * Read the blog post here:
  * https://letsbuildui.dev/articles/resizable-tables-with-react-and-css-grid
  */
-const Table: React.FC<Props> = ({ headers, minCellWidth, rows }) => {
+const Table: React.FC<Props> = ({
+  headerNames,
+  minCellWidth,
+  rows,
+  onCellInput,
+}) => {
+  // カラムのリサイズハンドルの高さを決定するために使用します
   const [tableHeight, setTableHeight] = useState<string | number>("auto");
+  // 現在リサイズされているカラムのインデックスを格納します
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  const [rowsForEdit, setRowsForEdit] = useState<any>([]);
-
-  // const rowsForSearch = useMemo(() => {}, []);
   const tableElement = useRef<HTMLTableElement>(null); // useRefフックの初期値にnullを与えると、戻り値のrefオブジェクトは読み取り専用です。つまり、currentプロパティは書き替えられません。
-  const columns = createHeaders(headers);
+
+  const refs = createRefs(10);
+  const columns = createHeaders(
+    headerNames.filter((headerName) => headerName !== "i"),
+    refs
+  );
 
   useEffect(() => {
     if (!tableElement.current) return;
     setTableHeight(tableElement.current.offsetHeight);
   }, []);
 
+  // ハンドルをクリックしたときに実行される
   const mouseDown = (index: number) => {
     setActiveIndex(index);
   };
@@ -51,13 +74,14 @@ const Table: React.FC<Props> = ({ headers, minCellWidth, rows }) => {
         const th = col.ref.current;
         if (!th) throw Error("th is falsy");
         if (i === activeIndex) {
-          const width = e.clientX - th.offsetLeft;
+          // カラムのindexとactiveIndexが一致する
+          const width = e.clientX - th.offsetLeft; // 列の幅を取得
 
           if (width >= minCellWidth) {
-            return `${width}px`;
+            return `${width}px`; // この幅がminCellWidthプロパティの値以上であれば、新しい幅を返します。
           }
         }
-        return `${th.offsetWidth}px`;
+        return `${th.offsetWidth}px`; // それ以外の場合は、以前の幅を返す。
       });
 
       table.style.gridTemplateColumns = `${gridColumns.join(" ")}`;
@@ -65,16 +89,20 @@ const Table: React.FC<Props> = ({ headers, minCellWidth, rows }) => {
     [activeIndex, columns, minCellWidth]
   );
 
+  // ハンドルを操作しているときと、ハンドルを離した際のクリーンアップ用の処理をイベントハンドラにセットする
   const removeListeners = useCallback(() => {
     window.removeEventListener("mousemove", mouseMove);
     window.removeEventListener("mouseup", removeListeners);
   }, [mouseMove]);
 
+  // mouseUp 関数は、activeIndex 状態の値を解除し、イベントリスナーを削除する関数を呼び出します。
+  // そうしないと、列のリサイズが止まりません。
   const mouseUp = useCallback(() => {
     setActiveIndex(null);
     removeListeners();
   }, [setActiveIndex, removeListeners]);
 
+  // activeIndex の値が null でない場合は、mouseMove と mouseUp という二つの新しいリスナーを追加する
   useEffect(() => {
     if (activeIndex !== null) {
       window.addEventListener("mousemove", mouseMove);
@@ -92,56 +120,8 @@ const Table: React.FC<Props> = ({ headers, minCellWidth, rows }) => {
   //   tableElement.current.style.gridTemplateColumns = "";
   // };
 
-  useEffect(() => {
-    setRowsForEdit(rows.slice());
-  }, [rows]);
-
-  const handleCellInput = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    i: number,
-    j: number
-  ) => {
-    setRowsForEdit((oldRows: any) => {
-      const newRowsForEdit = produce(oldRows, (draft: any) => {
-        draft[i][columns[j].text] = e.target.value;
-      });
-      setRowsForSearch(newRowsForEdit);
-      return newRowsForEdit;
-    });
-  };
-
-  const [searchWord, setSearchWord] = useState("");
-  const [rowsForSearch, setRowsForSearch] = useState<any>([]);
-  const handleSearchWordInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchWord(e.target.value);
-    if (!e.target.value) {
-      // rowsForSearchは常に最新の入力状態のセルデータを持つ
-      setRowsForEdit(rowsForSearch);
-      return;
-    }
-    const options = {
-      includeScore: true,
-      keys: ["content"],
-    };
-    const fuse = new Fuse(rowsForSearch, options);
-    const result = fuse.search(e.target.value).sort((a: any, b: any) => {
-      if (!a?.score && !b?.score) return 0;
-      if (!a?.score) return 1;
-      if (!b?.score) return -1;
-      return a.score > b.score ? -1 : 1;
-    });
-    setRowsForEdit(result.map(({ item }: any) => item));
-  };
-
   return (
     <div className="container">
-      <TextField
-        id="outlined-basic"
-        label="Outlined"
-        variant="outlined"
-        onChange={handleSearchWordInput}
-        value={searchWord}
-      />
       <div className="table-wrapper">
         <table
           className="resizeable-table"
@@ -156,6 +136,7 @@ const Table: React.FC<Props> = ({ headers, minCellWidth, rows }) => {
             <tr>
               {columns.map(({ ref, text }, i) => (
                 <th ref={ref} key={text}>
+                  {/* spanタグ内にテキストを配置するのは、セルの幅を超えるコンテンツを切り取り、切り取られたコンテンツには省略記号を表示するため */}
                   <span>{text}</span>
                   <div
                     style={{ height: tableHeight }}
@@ -169,14 +150,14 @@ const Table: React.FC<Props> = ({ headers, minCellWidth, rows }) => {
             </tr>
           </thead>
           <tbody>
-            {rowsForEdit.map((row: any, i: number) => (
+            {rows.map((row: any, i: number) => (
               <tr key={i}>
                 {columns.map(({ text: headerName }, j: number) => (
                   <td key={j}>
                     <TextField
                       value={row[headerName]}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        handleCellInput(e, i, j)
+                        onCellInput(e, i, j, columns)
                       }
                       fullWidth
                     />
