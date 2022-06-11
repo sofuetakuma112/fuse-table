@@ -22,6 +22,7 @@ const searchers = [
 const searchersLen = searchers.length
 
 // Regex to split by spaces, but keep anything in quotes together
+// eslint-disable-next-line no-useless-escape
 const SPACE_RE = / +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/
 const OR_TOKEN = '|'
 

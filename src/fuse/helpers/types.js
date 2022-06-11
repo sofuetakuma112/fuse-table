@@ -12,6 +12,7 @@ export function baseToString(value) {
     return value
   }
   let result = value + ''
+  // eslint-disable-next-line eqeqeq
   return result == '0' && 1 / value == -INFINITY ? '-0' : result
 }
 
@@ -32,6 +33,7 @@ export function isBoolean(value) {
   return (
     value === true ||
     value === false ||
+    // eslint-disable-next-line eqeqeq
     (isObjectLike(value) && getTag(value) == '[object Boolean]')
   )
 }

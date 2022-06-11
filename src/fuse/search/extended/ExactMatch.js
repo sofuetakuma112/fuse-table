@@ -5,6 +5,7 @@
 import BaseMatch from './BaseMatch'
 
 export default class ExactMatch extends BaseMatch {
+  // eslint-disable-next-line no-useless-constructor
   constructor(pattern) {
     super(pattern)
   }

@@ -4,6 +4,7 @@
 import BaseMatch from './BaseMatch'
 
 export default class InverseSuffixExactMatch extends BaseMatch {
+  // eslint-disable-next-line no-useless-constructor
   constructor(pattern) {
     super(pattern)
   }
