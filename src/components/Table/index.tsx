@@ -1,34 +1,23 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { TextField } from "@mui/material";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  useMemo,
+  createRef,
+} from "react";
 import "./styles.css";
-
-const createHeaders = (
-  headers: string[],
-  refs: React.RefObject<HTMLTableHeaderCellElement>[]
-) => {
-  return headers.map((item: string, i: number) => ({
-    text: item,
-    ref: refs[i], // tableHeightの取得と、後でテーブルのヘッダーセルに正しい幅を適用するのに使用する
-  }));
-};
-
-const createRefs = (size: number) =>
-  range(size).map(() => useRef<HTMLTableHeaderCellElement>(null));
-
-const range = (length: number) => Array.from({ length }, (v, k) => k);
+import { range } from "../../utils/util";
+import { Row, Column } from "../Row";
 
 type Props = {
   headerNames: string[];
   minCellWidth: number;
   rows: any;
   onCellInput(
-    e: React.ChangeEvent<HTMLInputElement>,
-    i: number,
-    j: number,
-    columns: {
-      text: string;
-      ref: React.RefObject<HTMLTableHeaderCellElement>;
-    }[]
+    { y, x }: { y: number; x: number },
+    value: string,
+    columns: Column[]
   ): void;
 };
 
@@ -49,11 +38,23 @@ const Table: React.FC<Props> = ({
 
   const tableElement = useRef<HTMLTableElement>(null); // useRefフックの初期値にnullを与えると、戻り値のrefオブジェクトは読み取り専用です。つまり、currentプロパティは書き替えられません。
 
-  const refs = createRefs(10);
-  const columns = createHeaders(
-    headerNames,
-    // headerNames.filter((headerName) => headerName !== "i"),
-    refs
+  const refs = useRef<React.RefObject<HTMLTableHeaderCellElement>[]>([]);
+  const columns = useMemo(
+    () =>
+      headerNames.map((headerName: string, index: number) => {
+        refs.current[index] = createRef<HTMLTableHeaderCellElement>();
+        return {
+          refIndex: index,
+          headerName,
+        };
+      }),
+    [headerNames]
+  );
+
+  const onCellInputAssignedColumns = useCallback(
+    ({ y, x }: { y: number; x: number }, value: string) =>
+      onCellInput({ y, x }, value, columns),
+    [columns, onCellInput]
   );
 
   useEffect(() => {
@@ -71,18 +72,18 @@ const Table: React.FC<Props> = ({
       const table = tableElement.current;
       if (!table) throw Error("table is falsy");
 
-      const gridColumns = columns.map((col, i) => {
-        const th = col.ref.current;
+      const gridColumns = columns.map(({ refIndex }, i) => {
+        const th = refs.current[refIndex];
         if (!th) throw Error("th is falsy");
         if (i === activeIndex) {
           // カラムのindexとactiveIndexが一致する
-          const width = e.clientX - th.offsetLeft; // 列の幅を取得
+          const width = e.clientX - (th as any).offsetLeft; // 列の幅を取得
 
           if (width >= minCellWidth) {
             return `${width}px`; // この幅がminCellWidthプロパティの値以上であれば、新しい幅を返します。
           }
         }
-        return `${th.offsetWidth}px`; // それ以外の場合は、以前の幅を返す。
+        return `${(th as any).offsetWidth}px`; // それ以外の場合は、以前の幅を返す。
       });
 
       table.style.gridTemplateColumns = `${gridColumns.join(" ")}`;
@@ -115,12 +116,6 @@ const Table: React.FC<Props> = ({
     };
   }, [activeIndex, mouseMove, mouseUp, removeListeners]);
 
-  // Demo only
-  // const resetTableCells = () => {
-  //   if (!tableElement.current) return;
-  //   tableElement.current.style.gridTemplateColumns = "";
-  // };
-
   return (
     <div className="container">
       <div className="table-wrapper">
@@ -135,10 +130,10 @@ const Table: React.FC<Props> = ({
         >
           <thead>
             <tr>
-              {columns.map(({ ref, text }, i) => (
-                <th ref={ref} key={text}>
+              {columns.map(({ refIndex, headerName }, i) => (
+                <th ref={refs.current[refIndex]} key={headerName}>
                   {/* spanタグ内にテキストを配置するのは、セルの幅を超えるコンテンツを切り取り、切り取られたコンテンツには省略記号を表示するため */}
-                  <span>{text}</span>
+                  <span>{headerName}</span>
                   <div
                     style={{ height: tableHeight }}
                     onMouseDown={() => mouseDown(i)}
@@ -151,25 +146,18 @@ const Table: React.FC<Props> = ({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row: any, i: number) => (
-              <tr key={i}>
-                {columns.map(({ text: headerName }, j: number) => (
-                  <td key={j}>
-                    <TextField
-                      value={row[headerName]}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        onCellInput(e, i, j, columns)
-                      }
-                      fullWidth
-                    />
-                  </td>
-                ))}
-              </tr>
+            {rows.map((row: any, y: number) => (
+              <Row
+                key={y}
+                y={y}
+                row={row}
+                columns={columns}
+                onCellInput={onCellInputAssignedColumns}
+              />
             ))}
           </tbody>
         </table>
       </div>
-      {/* <button onClick={resetTableCells}>Reset</button> */}
     </div>
   );
 };

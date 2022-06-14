@@ -1,10 +1,10 @@
-import React, { useState } from "react";
-import "./App.css";
+import React, { useState, useCallback } from "react";
 import { Button, TextField, InputLabel, FormControl, Box } from "@mui/material";
 import Papa from "papaparse";
 import { Table } from "./components/Table";
 import { AddColumnModal } from "./components/Modal";
 import { AddRow } from "./components/AddRow";
+import { Column } from "./components/Row";
 
 import Fuse from "./fuse/entry";
 import produce from "immer";
@@ -126,22 +126,23 @@ function App() {
     a.remove();
   };
 
-  const handleCellInput = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    i: number,
-    j: number,
-    columns: {
-      text: string;
-      ref: React.RefObject<HTMLTableHeaderCellElement>;
-    }[]
-  ) => {
-    setRowsForEdit((oldRows: any) => {
-      const newRowsForEdit = produce(oldRows, (draft: any) => {
-        draft[i][columns[j].text] = e.target.value;
+  const handleCellInput = useCallback(
+    (
+      { y, x }: { y: number; x: number },
+      value: string,
+      columns: Column[]
+    ) => {
+      setRowsForEdit((oldRows: any) => {
+        console.log(`handleCellInput: (${x}, ${y})`);
+        const newRowsForEdit = produce(oldRows, (draftRows: any) => {
+          draftRows[y][columns[x].headerName] = value;
+        });
+        console.log(`newRowsForEdit: ${newRowsForEdit}`);
+        return newRowsForEdit;
       });
-      return newRowsForEdit;
-    });
-  };
+    },
+    []
+  );
 
   const handleSearchWordInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchWord(e.target.value);
