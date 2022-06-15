@@ -5,6 +5,8 @@ import { Table } from "./components/Table";
 import { AddColumnModal } from "./components/Modal";
 import { AddRow } from "./components/AddRow";
 import { Column } from "./components/Row";
+import { SelectShowingColumns } from "./components/SelectShowingColumns";
+import { usePrevious } from "./hooks/usePrevious";
 
 import Fuse from "./fuse/entry";
 import produce from "immer";
@@ -27,6 +29,8 @@ function App() {
   const [rows, setRows] = useState<any>([]);
   const [searchWord, setSearchWord] = useState("");
   const [searchTarget, setSearchTarget] = useState<string>("");
+
+  const oldHeaderNames = usePrevious<string[]>(headerNames, []);
 
   const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -131,7 +135,6 @@ function App() {
         const newRowsForEdit = produce(oldRows, (draftRows: any) => {
           draftRows[y][columns[x].headerName] = value;
         });
-        // console.log(newRowsForEdit);
         return newRowsForEdit;
       });
     },
@@ -165,6 +168,38 @@ function App() {
 
   const handleChangeSearchTarget = (e: SelectChangeEvent) => {
     setSearchTarget(e.target.value);
+  };
+
+  const [showingHeaderNames, setShowingHeaderNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    const newHeaderNames = headerNames.filter(
+      (newHeaderName) => !oldHeaderNames.includes(newHeaderName)
+    );
+    const deletedHeaderNames = oldHeaderNames.filter(
+      (newHeaderName) => !headerNames.includes(newHeaderName)
+    );
+    setShowingHeaderNames((oldShowingHeaderNames) =>
+      [...oldShowingHeaderNames, ...newHeaderNames].filter(
+        (headerName) => !deletedHeaderNames.includes(headerName)
+      )
+    );
+  }, [headerNames, oldHeaderNames]);
+
+  const handleShowingHeaderNameChecked = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const value = e.target.value;
+    setShowingHeaderNames((oldShowingHeaderNames) => {
+      if (oldShowingHeaderNames.includes(value)) {
+        // 押されたcheckboxが既にチェック済みの場合
+        return oldShowingHeaderNames.filter(
+          (headerName) => headerName !== value
+        );
+      } else {
+        return [...oldShowingHeaderNames, value];
+      }
+    });
   };
 
   return (
@@ -222,9 +257,15 @@ function App() {
                 </Select>
               </FormControl>
             </Box>
+            <SelectShowingColumns
+              showingHeaderNames={showingHeaderNames}
+              headerNames={headerNames}
+              onChecked={handleShowingHeaderNameChecked}
+            />
           </div>
           <Table
             headerNames={headerNames}
+            showingHeaderNames={showingHeaderNames}
             minCellWidth={120}
             rows={rows}
             onCellInput={handleCellInput}

@@ -13,7 +13,7 @@ const Cell: React.FC<Props> = React.memo(
     const [value, setValue] = useState(propsValue);
 
     useEffect(() => {
-      console.log(`Cell(): (${y}, ${x}), ${propsValue}`);
+      // console.log(`Cell(): (${y}, ${x}), ${propsValue}`);
       setValue(propsValue)
     }, [propsValue, x, y]);
 

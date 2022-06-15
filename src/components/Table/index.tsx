@@ -12,6 +12,7 @@ import { Row, Column } from "../Row";
 
 type Props = {
   headerNames: string[];
+  showingHeaderNames: string[];
   minCellWidth: number;
   rows: any;
   onCellInput(
@@ -27,6 +28,7 @@ type Props = {
  */
 const Table: React.FC<Props> = ({
   headerNames,
+  showingHeaderNames,
   minCellWidth,
   rows,
   onCellInput,
@@ -35,20 +37,20 @@ const Table: React.FC<Props> = ({
   const [tableHeight, setTableHeight] = useState<string | number>("auto");
   // 現在リサイズされているカラムのインデックスを格納します
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-
+  
   const tableElement = useRef<HTMLTableElement>(null); // useRefフックの初期値にnullを与えると、戻り値のrefオブジェクトは読み取り専用です。つまり、currentプロパティは書き替えられません。
 
   const refs = useRef<React.RefObject<HTMLTableHeaderCellElement>[]>([]);
   const columns = useMemo(
     () =>
-      headerNames.map((headerName: string, index: number) => {
+      showingHeaderNames.map((headerName: string, index: number) => {
         refs.current[index] = createRef<HTMLTableHeaderCellElement>();
         return {
           refIndex: index,
           headerName,
         };
       }),
-    [headerNames]
+    [showingHeaderNames]
   );
 
   const onCellInputAssignedColumns = useCallback(
@@ -117,7 +119,7 @@ const Table: React.FC<Props> = ({
   }, [activeIndex, mouseMove, mouseUp, removeListeners]);
 
   if (rows[0].i === 0) {
-    console.log(rows[0])
+    console.log(rows[0]);
   }
 
   return (
