@@ -116,6 +116,10 @@ const Table: React.FC<Props> = ({
     };
   }, [activeIndex, mouseMove, mouseUp, removeListeners]);
 
+  if (rows[0].i === 0) {
+    console.log(rows[0])
+  }
+
   return (
     <div className="container">
       <div className="table-wrapper">
@@ -146,10 +150,10 @@ const Table: React.FC<Props> = ({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row: any, y: number) => (
+            {rows.map((row: any) => (
               <Row
-                key={y}
-                y={y}
+                key={row.i}
+                y={row.i}
                 row={row}
                 columns={columns}
                 onCellInput={onCellInputAssignedColumns}

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { TextField } from "@mui/material";
 
 type Props = {
@@ -10,20 +10,25 @@ type Props = {
 
 const Cell: React.FC<Props> = React.memo(
   ({ x, y, value: propsValue, onCellInput }) => {
-    console.log(`Cell(): (${x}, ${y})`)
-
     const [value, setValue] = useState(propsValue);
+
+    useEffect(() => {
+      console.log(`Cell(): (${y}, ${x}), ${propsValue}`);
+      setValue(propsValue)
+    }, [propsValue, x, y]);
 
     const hasNewValue = useCallback(
       (value: string) => {
-        onCellInput({ x, y }, value);;
+        onCellInput({ x, y }, value);
         // setEditing(false);
       },
       [onCellInput, x, y]
     );
 
     const onBlur = useCallback(
-      (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement, Element>) => {
+      (
+        e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement, Element>
+      ) => {
         hasNewValue(e.target.value);
       },
       [hasNewValue]

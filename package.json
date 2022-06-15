@@ -16,6 +16,7 @@
     "@types/node": "^16.11.39",
     "@types/react": "^18.0.12",
     "@types/react-dom": "^18.0.5",
+    "clone-deep": "^4.0.1",
     "csv": "^6.1.0",
     "exceljs": "^4.3.0",
     "fuse.js": "^6.6.2",
@@ -52,6 +53,7 @@
     ]
   },
   "devDependencies": {
+    "@types/clone-deep": "^4.0.1",
     "@types/papaparse": "^5.3.2",
     "autoprefixer": "^10.4.7",
     "postcss": "^8.4.14",

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button, TextField, InputLabel, FormControl, Box } from "@mui/material";
 import Papa from "papaparse";
 import { Table } from "./components/Table";
@@ -14,20 +14,18 @@ import ExcelJS from "exceljs";
 import MenuItem from "@mui/material/MenuItem";
 import Select, { SelectChangeEvent } from "@mui/material/Select";
 
+import cloneDeep from "clone-deep";
+
 const sortByIndex = (array: any) =>
-  array.sort((a: any, b: any) => {
+  cloneDeep(array).sort((a: any, b: any) => {
     return a.i > b.i ? 1 : -1;
   });
 
 function App() {
   const [headerNames, setHeaderNames] = useState<string[]>([]);
-
   const [isAddColumnOpen, setIsAddColumnOpen] = useState<boolean>(false);
-
-  const [rowsForEdit, setRowsForEdit] = useState<any>([]);
-
+  const [rows, setRows] = useState<any>([]);
   const [searchWord, setSearchWord] = useState("");
-
   const [searchTarget, setSearchTarget] = useState<string>("");
 
   const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,14 +40,14 @@ function App() {
             i,
           };
         });
-        setRowsForEdit(rowsWithIndex);
+        setRows(rowsWithIndex);
         setHeaderNames(Object.keys(rowsWithIndex[0]));
       },
     });
   };
 
   const handleAddRow = (shouldInsertTop: boolean) => {
-    setRowsForEdit((oldRows: any) => {
+    setRows((oldRows: any) => {
       let newRows: any[] = [];
       if (shouldInsertTop) {
         const incrementedIndexRows = oldRows.map((row: any) =>
@@ -79,6 +77,7 @@ function App() {
           },
         ];
       }
+      console.log(`newRows.length: ${newRows.length}`);
       return sortByIndex(newRows);
     });
   };
@@ -90,7 +89,7 @@ function App() {
   const handleAddColumnClose = (columnName?: string) => {
     if (columnName && !headerNames.includes(columnName)) {
       setHeaderNames((oldHeaderNames) => [...oldHeaderNames, columnName]);
-      setRowsForEdit((oldRows: any[]) => {
+      setRows((oldRows: any[]) => {
         const objWithNewKey: any = {};
         objWithNewKey[columnName] = "";
         const newRowsForEdit = oldRows.map((oldRow: any) => {
@@ -114,7 +113,7 @@ function App() {
       header: headerName,
       key: headerName,
     }));
-    worksheet.addRows(rowsForEdit);
+    worksheet.addRows(sortByIndex(rows));
 
     const uint8Array = await workbook.csv.writeBuffer();
     const blob = new Blob([uint8Array], { type: "application/octet-binary" });
@@ -127,17 +126,12 @@ function App() {
   };
 
   const handleCellInput = useCallback(
-    (
-      { y, x }: { y: number; x: number },
-      value: string,
-      columns: Column[]
-    ) => {
-      setRowsForEdit((oldRows: any) => {
-        console.log(`handleCellInput: (${x}, ${y})`);
+    ({ y, x }: { y: number; x: number }, value: string, columns: Column[]) => {
+      setRows((oldRows: any) => {
         const newRowsForEdit = produce(oldRows, (draftRows: any) => {
           draftRows[y][columns[x].headerName] = value;
         });
-        console.log(`newRowsForEdit: ${newRowsForEdit}`);
+        // console.log(newRowsForEdit);
         return newRowsForEdit;
       });
     },
@@ -146,18 +140,28 @@ function App() {
 
   const handleSearchWordInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchWord(e.target.value);
-    if (!e.target.value) {
-      setRowsForEdit(sortByIndex(rowsForEdit));
+  };
+
+  useEffect(() => {
+    if (!searchWord) {
+      console.log("no words");
+      try {
+        setRows(sortByIndex(rows));
+      } catch (e: any) {
+        console.log(rows);
+        throw Error(e);
+      }
       return;
     }
     const options = {
       includeScore: true,
       keys: [searchTarget],
     };
-    const fuse = new Fuse(rowsForEdit, options);
-    const result = fuse.search(e.target.value);
-    setRowsForEdit(result.map(({ item }: any) => item));
-  };
+    const fuse = new Fuse(rows, options);
+    const result = fuse.search(searchWord);
+    setRows(result.map(({ item }: any) => item));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTarget, searchWord]);
 
   const handleChangeSearchTarget = (e: SelectChangeEvent) => {
     setSearchTarget(e.target.value);
@@ -222,7 +226,7 @@ function App() {
           <Table
             headerNames={headerNames}
             minCellWidth={120}
-            rows={rowsForEdit}
+            rows={rows}
             onCellInput={handleCellInput}
           />
         </>

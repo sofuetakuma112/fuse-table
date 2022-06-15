@@ -14,6 +14,11 @@ type Props = {
 };
 
 const Row: React.FC<Props> = ({ y, row, columns, onCellInput }) => {
+  // console.log(`Row(): (, ${y})`)
+  // if (row.i === 0) {
+  //   console.log(row)
+  // }
+
   return (
     <tr>
       {columns.map(({ headerName }, x: number) => (
